@@ -1,0 +1,178 @@
+---
+apiVersion: triggers.tekton.dev/v1alpha1
+kind: TriggerTemplate
+metadata:
+  name: cd-template-pipeline
+spec:
+  params:
+  - name: pusher
+  - name: repo_name
+  - name: tag
+  - name: repo_url
+  - name: image_name
+  - name: repo_org
+  - name: deployment_name
+  - name: namespace
+  resourcetemplates:
+  - apiVersion: tekton.dev/v1beta1
+    kind: PipelineRun
+    metadata:
+      generateName: cd-pipeline-run-
+    spec:
+      pipelineRef:
+        name: cd-pipeline
+      serviceAccountName: pipeline-service-account
+      params:
+      - name: pusher
+        value: $(tt.params.pusher)
+      - name: repo_name
+        value: $(tt.params.repo_name)
+      - name: tag
+        value: $(tt.params.tag)
+      - name: repo_url
+        value: $(tt.params.repo_url)
+      - name: image_name
+        value: $(tt.params.image_name)
+      - name: repo_org
+        value: $(tt.params.repo_org)
+      - name: namespace
+        value: $(tt.params.namespace)
+      - name: deployment_name
+        value: $(tt.params.deployment_name)
+
+---
+
+apiVersion: tekton.dev/v1beta1
+kind: Pipeline
+metadata:
+  name: cd-pipeline
+spec:
+  params:
+  - name: pusher
+  - name: repo_name
+  - name: tag
+  - name: repo_url
+  - name: repo_org
+  - name: image_name
+  - name: namespace
+  - name: deployment_name
+  tasks:
+  - name: build-skaffold-web
+    taskRef:
+      name: cd-task
+    params:
+    - name: pusher
+      value: "$(params.pusher)"
+    - name: repo_name
+      value: "$(params.repo_name)"
+    - name: tag
+      value: "$(params.tag)"
+    - name: repo_url
+      value: "$(params.repo_url)"
+    - name: image_name
+      value: "$(params.image_name)"
+    - name: repo_org
+      value: "$(params.repo_org)"
+    - name: namespace
+      value: "$(params.namespace)"
+    - name: deployment_name
+      value: "$(params.deployment_name)"
+
+---
+
+apiVersion: tekton.dev/v1beta1
+kind: Task
+metadata:
+  name: cd-task
+spec:
+  params:
+  - name: pusher
+  - name: repo_name
+  - name: tag
+  - name: repo_url
+  - name: image_name
+  - name: repo_org
+  - name: namespace
+  - name: deployment_name
+  steps:
+  - name: get-current-image-tag
+    image: lachlanevenson/k8s-kubectl
+    script: |
+      CURRENT_IMAGE_TAG=$(kubectl get deployment $(params.deployment_name) -n $(params.namespace) -o jsonpath='{.spec.template.spec.containers[*].image}' | grep $(params.repo_org)/$(params.image_name))
+      REPO_NAME=$(params.repo_org)/$(params.image_name)
+      CURRENT_TAG=${CURRENT_IMAGE_TAG/$REPO_NAME:/""}
+      echo $CURRENT_TAG > current_tag.txt
+  - name: validate-if-its-a-newversion
+    image: golang
+    script: |
+      #!/usr/bin/env bash
+      CURRENT_TAG=$(cat current_tag.txt)
+      cat << EOF > main.go
+      package main
+      import (
+      	"os"
+      	"strings"
+        "github.com/hashicorp/go-version"
+      )
+      func main()  {
+      	args := os.Args
+      	newVersionLenght := len(strings.Split(args[1], "."))
+      	if newVersionLenght > 3 {
+      		newVersionLenght = 3
+      	}
+      	oldVersionLenght := len(strings.Split(args[2], "."))
+      	if oldVersionLenght > 3 {
+      		oldVersionLenght = 3
+      	}
+      	newVersion := strings.Join(strings.Split(args[1], ".")[:newVersionLenght],".")
+      	oldVersion := strings.Join(strings.Split(args[2], ".")[:oldVersionLenght],".")
+      	v1, err := version.NewVersion(newVersion)
+      	if err!=nil{
+      		panic(err.Error())
+      	}
+      	// Constraints example.
+      	constraints, err := version.NewConstraint(">= "+oldVersion)
+      	if !constraints.Check(v1) {
+      		panic(v1.String()+" not satisfies constraints "+constraints.String())
+      	}
+      }
+      EOF
+      go mod init version-validat
+      go run main.go $(params.tag) $CURRENT_TAG
+  - name: deploy-new-version
+    image: lachlanevenson/k8s-kubectl
+    script: |
+      kubectl get deployment $(params.deployment_name) -n $(params.namespace) -o yaml | sed 's/\(image: $(params.repo_org)\/$(params.image_name)\):.*$/\1:$(params.tag)/' | kubectl replace -f -
+
+---
+
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: pipeline-service-account
+
+---
+
+kind: ClusterRole
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: cd-pipeline-role
+rules:
+- apiGroups: ["extensions", "apps", ""]
+  resources: ["services", "deployments", "pods"]
+  verbs: ["get", "create", "update", "patch", "list", "delete"]
+
+---
+
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: cd-pipeline-role-binding
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: cd-pipeline-role
+subjects:
+- kind: ServiceAccount
+  name: pipeline-service-account
+  namespace: default

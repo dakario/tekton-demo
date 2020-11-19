@@ -1,0 +1,22 @@
+apiVersion: triggers.tekton.dev/v1alpha1
+kind: TriggerBinding
+metadata:
+  name: app1-cd-binging
+spec:
+  params:
+    - name: pusher
+      value: $(body.push_data.pusher)
+    - name: repo_name
+      value: $(body.repository.repo_name)
+    - name: tag
+      value: $(body.push_data.tag)
+    - name: repo_url
+      value: $(body.repository.repo_url)
+    - name: repo_org
+      value: $(body.repository.namespace)
+    - name: image_name
+      value: $(body.repository.name)
+    - name: namespace
+      value: ns1
+    - name: deployment_name
+      value: app1
