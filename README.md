@@ -14,7 +14,7 @@
     kubectl apply -f triggerbinding-app1.yaml
     
 ### 5. Creat a new trigger for app2
-##### 5.1 Edit the eventlistener and add this following trigger:
+###### 5.1 Edit the eventlistener and add this following trigger:
 
 ```yaml
 triggers:
@@ -28,5 +28,5 @@ triggers:
      template:
        ref: cd-template-pipeline
 ```    
-##### 5.1 Creat the app2 deployment's and his triggerbinding
+###### 5.2 Creat the app2 deployment's and his triggerbinding
     kubectl apply -f triggerbinding-app2.yaml
