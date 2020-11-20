@@ -5,7 +5,8 @@
     kubectl apply --filename https://storage.googleapis.com/tekton-releases/triggers/latest/release.yaml
 
 ### 3. deploy app1 and app2 on namespace ns1 and ns2
-    kubectl apply -f app1-deployment.yaml -f app2-deployment.yaml
+    kubectl apply -f deployments.yaml
+
 ### 3. Intall EventListener
     kubectl apply -f event-listener.yaml
 
@@ -29,6 +30,6 @@ triggers:
      - ref: app2-cd-binging
      template:
        ref: cd-template-pipeline
-```    
-##### 5.2 Create the app2 triggerbinding's 
+```
+##### 5.2 Create the app2 triggerbinding's
     kubectl apply -f triggerbinding-app2.yaml
