@@ -13,14 +13,6 @@ spec:
     - ref: app1-cd-binging
     template:
       ref: cd-template-pipeline
-  - name: app2-cd
-    interceptors:
-    - cel:
-        filter: "body.repository.repo_name=='beopenit/app2'"
-    bindings:
-    - ref: app2-cd-binging
-    template:
-      ref: cd-template-pipeline
   resources:
     kubernetesResource:
       spec:
