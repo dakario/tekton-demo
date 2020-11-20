@@ -9,24 +9,17 @@ spec:
     interceptors:
     - cel:
         filter: "body.repository.repo_name=='beopenit/app1'"
-    bindings:
-    - ref: app1-cd-binging
     template:
       ref: cd-template-pipeline
+    bindings:
+    - ref: app1-cd-binging
   resources:
     kubernetesResource:
       spec:
         template:
           spec:
             serviceAccountName: tekton-triggers-sa
-            containers:
-            - resources:
-                requests:
-                  memory: "64Mi"
-                  cpu: "250m"
-                limits:
-                  memory: "128Mi"
-                  cpu: "500m"
+
 ---
 apiVersion: v1
 kind: ServiceAccount
