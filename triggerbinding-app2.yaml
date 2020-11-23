@@ -20,3 +20,4 @@ spec:
       value: ns2
     - name: deployment_name
       value: app2
+
